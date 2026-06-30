@@ -1,0 +1,43 @@
+# Estimate MPT parameters for sentence production task
+# datamatrix - subjects x response types [G, H, L, HL, O]
+# N          - number of subjects
+# K          - vector of total utterances per subject
+model {
+
+    for (nn in 1:N) {
+
+        # -------------------------------------------------
+        # Priors: latent parameters on probit scale
+        # -------------------------------------------------
+        for (pp in 1:3) {
+            B[nn, pp] ~ dnorm(0, 1)
+            P[nn, pp] <- phi(B[nn, pp])
+        }
+
+        # -------------------------------------------------
+        # MPT branch probabilities
+        #   P[nn,1] = prob of hierarchical structure (a)
+        #   P[nn,2] = prob of linear structure (b)
+        #   P[nn,3] = prob of overt production (c)
+        # -------------------------------------------------
+        R[nn, 1] <- P[nn,1] * P[nn,2] * P[nn,3]                                                          # Grammatical
+        R[nn, 2] <- P[nn,2] * (1 - P[nn,1]) * P[nn,3]                                                   # Hierarchical errors
+        R[nn, 3] <- P[nn,1] * (1 - P[nn,2]) * P[nn,3]                                                   # Linear errors
+        R[nn, 4] <- (1 - P[nn,1]) * (1 - P[nn,2]) * P[nn,3]                                             # Mixed errors
+        R[nn, 5] <- P[nn,1]*(1-P[nn,2])*(1-P[nn,3]) +
+                    P[nn,2]*(1-P[nn,1])*(1-P[nn,3]) +
+                    (1-P[nn,1])*(1-P[nn,2])*(1-P[nn,3])                                                  # Omission errors
+
+        # -------------------------------------------------
+        # Likelihood: observed counts
+        # -------------------------------------------------
+        datamatrix[nn, 1:5] ~ dmulti(R[nn, 1:5], K[nn])
+
+        # -------------------------------------------------
+        # Posterior predictive: replicated counts
+        # (used for PPD and PVR calculations in R)
+        # -------------------------------------------------
+        datamatrix_post[nn, 1:5] ~ dmulti(R[nn, 1:5], K[nn])
+
+    }
+}

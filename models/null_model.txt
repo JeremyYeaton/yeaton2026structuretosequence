@@ -1,0 +1,37 @@
+# Null multinomial model for sentence production task
+# Each response type gets its own latent variable (4 free + 1 constrained)
+# datamatrix - subjects x response types [G, H, L, HL, O]
+# N          - number of subjects
+# K          - vector of total utterances per subject
+model {
+
+    for (nn in 1:N) {
+
+        # -------------------------------------------------
+        # Priors: 4 free latent parameters on probit scale
+        # 5th category probability = 1 - sum(others)
+        # -------------------------------------------------
+        for (pp in 1:4) {
+            B_null[nn, pp] ~ dnorm(0, 1)
+        }
+
+        # Convert to (0,1) via phi, then use stick-breaking
+        # to ensure probabilities sum to 1
+        R_null[nn, 1] <- phi(B_null[nn, 1])
+        R_null[nn, 2] <- phi(B_null[nn, 2]) * (1 - R_null[nn, 1])
+        R_null[nn, 3] <- phi(B_null[nn, 3]) * (1 - R_null[nn, 1] - R_null[nn, 2])
+        R_null[nn, 4] <- phi(B_null[nn, 4]) * (1 - R_null[nn, 1] - R_null[nn, 2] - R_null[nn, 3])
+        R_null[nn, 5] <- 1 - R_null[nn, 1] - R_null[nn, 2] - R_null[nn, 3] - R_null[nn, 4]
+
+        # -------------------------------------------------
+        # Likelihood: observed counts
+        # -------------------------------------------------
+        datamatrix[nn, 1:5] ~ dmulti(R_null[nn, 1:5], K[nn])
+
+        # -------------------------------------------------
+        # Posterior predictive: replicated counts
+        # -------------------------------------------------
+        datamatrix_post_null[nn, 1:5] ~ dmulti(R_null[nn, 1:5], K[nn])
+
+    }
+}
